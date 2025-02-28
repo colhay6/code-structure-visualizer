@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Structure Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        #container {
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        #header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #controls {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        #visualization {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: white;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
+            z-index: 1;
+            /* Ensure it's above other elements */
+            overflow: hidden;
+        }
+
+        #file-list {
+            position: absolute;
+            right: 20px;
+            top: 50px;
+            min-width: 250px;
+            /* Ensures a minimum width */
+            max-width: 90vw;
+            /* Maximum width is 90% of the viewport width */
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            max-height: 80vh;
+            overflow-y: auto;
+            overflow-x: auto;
+            /* Allow horizontal scrolling if needed */
+            z-index: 10;
+        }
+
+        #file-list ul {
+            padding-left: 20px;
+            /* Indentation for nested folders/files */
+            list-style-type: none;
+            /* Removes bullets */
+        }
+
+        .file-item {
+            padding: 5px;
+        }
+
+        .directory-item {
+            padding: 5px;
+            font-weight: bold;
+        }
+
+        .directory-item::before {
+            #file-list {
+                position: absolute;
+                right: 20px;
+                top: 50px;
+                width: 250px;
+                background-color: rgba(255, 255, 255, 0.9);
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                padding: 10px;
+                max-height: 80vh;
+                /* Allow up to 80% of the viewport height */
+                overflow-y: auto;
+                /* Scroll if content overflows */
+                z-index: 10;
+            }
+
+            display: inline-block;
+            width: 1em;
+            margin-right: 5px;
+            transition: transform 0.2s;
+        }
+
+        .directory-item.expanded::before {
+            transform: rotate(90deg);
+            /* Rotated arrow for expanded state */
+        }
+
+        .file-item::before {
+            display: inline-block;
+            width: 1em;
+            margin-right: 5px;
+        }
+
+        .file-item:hover {
+            background-color: #e0f7fa;
+            /* Light hover effect for clarity */
+            cursor: pointer;
+            /* Makes items have a pointer cursor */
+        }
+
+        .file-item.highlighted {
+            background-color: #e0f7fa;
+            font-weight: bold;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .link {
+            stroke: #000;
+            /* Change from #999 to #000 */
+            stroke-opacity: 0.6;
+            stroke-width: 1.5px;
+        }
+
+        .node circle {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+        .node text {
+            font-size: 10px;
+            font-family: sans-serif;
+        }
+
+        .node.highlighted circle {
+            stroke: #00bcd4;
+            stroke-width: 3px;
+        }
+
+        .link.highlighted {
+            stroke: #00bcd4;
+            stroke-width: 3px;
+            stroke-opacity: 1;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 20;
+        }
+
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #3367d6;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-input-label {
+            background-color: #4285f4;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .file-input-label:hover {
+            background-color: #3367d6;
+        }
+
+        select,
+        input[type="range"] {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-right: 10px;
+        }
+
+        .control-row {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .control-row label {
+            margin-right: 10px;
+            width: 150px;
+        }
+
+        #message {
+            margin-top: 10px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .legend {
+            position: absolute;
+            left: 20px;
+            top: 50px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            z-index: 10;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .exclude-list {
+            width: 100%;
+            min-height: 60px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            margin-top: 5px;
+            resize: vertical;
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .filter-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .filter-input {
+            display: flex;
+            align-items: center;
+        }
+
+        .filter-input input[type="text"] {
+            flex-grow: 1;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+
+        .tab.active {
+            background-color: #4285f4;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="header">
+            <h1>Code Structure Visualizer</h1>
+            <p>Visualize connections between files in your codebase</p>
+        </div>
+
+        <div id="controls">
+            <div class="control-row">
+                <label for="directory-input">Select directory:</label>
+                <label class="file-input-label">
+                    Choose Directory
+                    <input type="file" id="directory-input" webkitdirectory directory multiple>
+                </label>
+                <span id="selected-directory">No directory selected</span>
+            </div>
+
+            <div class="control-row">
+                <label for="base-path-input">Base Path:</label>
+                <input type="text" id="base-path-input" placeholder="Enter base path">
+            </div>
+
+            <div class="tabs">
+                <div class="tab active" data-tab="file-filters">File Filters</div>
+                <div class="tab" data-tab="visual-settings">Visual Settings</div>
+            </div>
+
+            <div class="tab-content active" id="file-filters">
+                <div class="filter-group">
+                    <h3>File Type Filters</h3>
+                    <div class="control-row">
+                        <label for="include-file-types">Include file types:</label>
+                        <div style="flex-grow: 1;">
+                            <div class="filter-input">
+                                <input type="text" id="include-file-types"
+                                    value=".js,.jsx,.ts,.tsx,.py,.java,.html,.css">
+                            </div>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                                Comma-separated list of file extensions to include (e.g., .js,.py)
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="control-row">
+                        <label for="exclude-file-types">Exclude file types:</label>
+                        <div style="flex-grow: 1;">
+                            <div class="filter-input">
+                                <input type="text" id="exclude-file-types" value=".min.js,.map,.d.ts">
+                            </div>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                                Comma-separated list of file extensions to exclude (e.g., .min.js,.map)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Directory Filters</h3>
+                    <div class="control-row">
+                        <label for="exclude-directories">Exclude directories:</label>
+                        <div style="flex-grow: 1;">
+                            <div class="filter-input">
+                                <input type="text" id="exclude-directories" value="node_modules,dist,build,vendor">
+                            </div>
+                            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                                Comma-separated list of directory names or paths to exclude (e.g., node_modules,dist)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="visual-settings">
+                <div class="control-row">
+                    <label for="link-strength">Link strength:</label>
+                    <input type="range" id="link-strength" min="0.1" max="1" step="0.1" value="0.5">
+                    <span id="link-strength-value">0.5</span>
+                </div>
+
+                <div class="control-row">
+                    <label for="charge-strength">Node repulsion:</label>
+                    <input type="range" id="charge-strength" min="100" max="1000" step="50" value="400">
+                    <span id="charge-strength-value">400</span>
+                </div>
+
+                <div class="control-row">
+                    <label for="node-size">Node size:</label>
+                    <input type="range" id="node-size" min="3" max="15" step="1" value="8">
+                    <span id="node-size-value">8</span>
+                </div>
+
+                <div class="control-row">
+                    <label for="text-size">Text size:</label>
+                    <input type="range" id="text-size" min="8" max="16" step="1" value="10">
+                    <span id="text-size-value">10</span>
+                </div>
+
+                <div class="control-row">
+                    <label for="display-labels">Display labels:</label>
+                    <select id="display-labels">
+                        <option value="always">Always</option>
+                        <option value="hover">On hover only</option>
+                        <option value="highlighted">Highlighted nodes only</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <button id="analyze-btn">Analyze Code</button>
+            </div>
+
+            <div id="message">Ready to analyze your code structure</div>
+        </div>
+
+        <div id="visualization">
+            <svg id="graph"></svg>
+
+            <div class="legend">
+                <h3>Node Types</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #4285f4;"></div>
+                    <span>JavaScript/TypeScript</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #34a853;"></div>
+                    <span>Python</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fbbc05;"></div>
+                    <span>HTML/CSS</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ea4335;"></div>
+                    <span>Java/Other</span>
+                </div>
+            </div>
+
+            <div id="file-list"></div>
+            <div class="tooltip"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let files = [];
+        let graph = { nodes: [], links: [] };
+        let simulation;
+        let svgWidth, svgHeight;
+
+        // Elements
+        const directoryInput = document.getElementById('directory-input');
+        const selectedDirectorySpan = document.getElementById('selected-directory');
+        const includeFileTypesInput = document.getElementById('include-file-types');
+        const excludeFileTypesInput = document.getElementById('exclude-file-types');
+        const excludeDirectoriesInput = document.getElementById('exclude-directories');
+        const linkStrengthInput = document.getElementById('link-strength');
+        const linkStrengthValue = document.getElementById('link-strength-value');
+        const chargeStrengthInput = document.getElementById('charge-strength');
+        const chargeStrengthValue = document.getElementById('charge-strength-value');
+        const nodeSizeInput = document.getElementById('node-size');
+        const nodeSizeValue = document.getElementById('node-size-value');
+        const textSizeInput = document.getElementById('text-size');
+        const textSizeValue = document.getElementById('text-size-value');
+        const displayLabelsSelect = document.getElementById('display-labels');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const messageDiv = document.getElementById('message');
+        const fileListDiv = document.getElementById('file-list');
+        const tooltip = document.querySelector('.tooltip');
+        const visualizationDiv = document.getElementById('visualization');
+        const basePathInput = document.getElementById('base-path-input');
+        const selectedNodes = new Set();
+
+        // Add a button to toggle menu visibility
+        const toggleMenuButton = document.createElement('button');
+        toggleMenuButton.textContent = 'Toggle Menu';
+        toggleMenuButton.style.position = 'fixed';
+        toggleMenuButton.style.top = '10px';
+        toggleMenuButton.style.right = '10px';
+        toggleMenuButton.style.zIndex = '1000';
+        document.body.appendChild(toggleMenuButton);
+
+        // Handle the menu toggle
+        let controlsVisible = true;
+        toggleMenuButton.addEventListener('click', () => {
+            controlsVisible = !controlsVisible;
+            document.getElementById('controls').style.display = controlsVisible ? 'block' : 'none';
+
+            // Adjust visualization height depending on the controls visibility
+            document.getElementById('visualization').style.height = controlsVisible ? 'calc(100% - 100%)' : '100%';
+        });
+
+        // Initialize visualization style
+        document.getElementById('controls').style.height = '100%';
+
+        // Set initial visualization size
+        document.getElementById('visualization').style.height = 'calc(100% - 100%)';
+
+        // D3 visualization elements
+        let svg, link, node;
+
+        // Tab functionality
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(tab.getAttribute('data-tab')).classList.add('active');
+            });
+        });
+
+        // Initialize the visualization
+        function initVisualization() {
+            // Get container dimensions
+            const visualizationRect = visualizationDiv.getBoundingClientRect();
+            svgWidth = visualizationRect.width - 40; // Accounting for padding
+            svgHeight = visualizationRect.height - 40;
+
+            svg = d3.select('#graph');
+            svg.selectAll('*').remove();
+
+            // Create the simulation
+            simulation = d3.forceSimulation()
+                .force('link', d3.forceLink().id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-chargeStrengthInput.value))
+                .force('center', d3.forceCenter(svgWidth / 2, svgHeight / 2))
+                .force('x', d3.forceX(svgWidth / 2).strength(0.05))
+                .force('y', d3.forceY(svgHeight / 2).strength(0.05));
+        }
+
+        // Handle directory selection
+        directoryInput.addEventListener('change', (event) => {
+            const fileList = event.target.files;
+            if (fileList.length > 0) {
+                selectedDirectorySpan.textContent = fileList[0].webkitRelativePath.split('/')[0];
+                files = Array.from(fileList);
+                messageDiv.textContent = `${files.length} files found. Click 'Analyze Code' to process.`;
+            }
+        });
+
+        // Analyze the code
+        analyzeBtn.addEventListener('click', () => {
+            if (files.length === 0) {
+                messageDiv.textContent = 'Please select a directory first.';
+                return;
+            }
+
+            messageDiv.textContent = 'Analyzing files...';
+            setTimeout(() => analyzeFiles(), 100);
+        });
+
+        // Update simulation parameters when inputs change
+        linkStrengthInput.addEventListener('input', updateSimulationParameters);
+        chargeStrengthInput.addEventListener('input', updateSimulationParameters);
+        nodeSizeInput.addEventListener('input', updateVisualParameters);
+        textSizeInput.addEventListener('input', updateVisualParameters);
+        displayLabelsSelect.addEventListener('change', updateVisualParameters);
+
+        // Update value displays for range inputs
+        linkStrengthInput.addEventListener('input', () => {
+            linkStrengthValue.textContent = linkStrengthInput.value;
+        });
+        chargeStrengthInput.addEventListener('input', () => {
+            chargeStrengthValue.textContent = chargeStrengthInput.value;
+        });
+        nodeSizeInput.addEventListener('input', () => {
+            nodeSizeValue.textContent = nodeSizeInput.value;
+        });
+        textSizeInput.addEventListener('input', () => {
+            textSizeValue.textContent = textSizeInput.value;
+        });
+
+        function updateSimulationParameters() {
+            if (simulation) {
+                simulation
+                    .force('link', d3.forceLink().id(d => d.id)
+                        .distance(100)
+                        .strength(parseFloat(linkStrengthInput.value)))
+                    .force('charge', d3.forceManyBody()
+                        .strength(-parseFloat(chargeStrengthInput.value)));
+
+                simulation.alpha(0.3).restart();
+            }
+        }
+
+        function updateVisualParameters() {
+            if (!node) return;
+
+            const nodeSize = parseInt(nodeSizeInput.value);
+            const textSize = parseInt(textSizeInput.value);
+            const displayLabels = displayLabelsSelect.value;
+
+            // Update node size
+            node.selectAll('circle')
+                .attr('r', nodeSize);
+
+            // Update text size
+            node.selectAll('text')
+                .style('font-size', `${textSize}px`);
+
+            // Update text visibility
+            if (displayLabels === 'always') {
+                node.selectAll('text').style('display', 'block');
+            } else if (displayLabels === 'hover') {
+                node.selectAll('text').style('display', 'none');
+
+                node.on('mouseover', function (event, d) {
+                    highlightNode(d);
+                    showTooltip(event, d);
+                    d3.select(this).select('text').style('display', 'block');
+                })
+                    .on('mouseout', function () {
+                        resetHighlight();
+                        hideTooltip();
+                        if (displayLabels === 'hover') {
+                            d3.select(this).select('text').style('display', 'none');
+                        }
+                    });
+            } else if (displayLabels === 'highlighted') {
+                node.selectAll('text').style('display', 'none');
+            }
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (simulation) {
+                const visualizationRect = visualizationDiv.getBoundingClientRect();
+                svgWidth = visualizationRect.width - 40;
+                svgHeight = visualizationRect.height - 40;
+
+                simulation
+                    .force('center', d3.forceCenter(svgWidth / 2, svgHeight / 2))
+                    .force('x', d3.forceX(svgWidth / 2).strength(0.05))
+                    .force('y', d3.forceY(svgHeight / 2).strength(0.05));
+
+                simulation.alpha(0.3).restart();
+            }
+        });
+
+        // Analyze the files and build the graph
+        function analyzeFiles() {
+            const baseDirectory = basePathInput.value.trim(); // Get base path from input
+
+            if (!baseDirectory) {
+                messageDiv.textContent = 'Please provide a base path.';
+                return;
+            }
+
+            const includeFileTypes = includeFileTypesInput.value.split(',').map(t => t.trim());
+            const excludeFileTypes = excludeFileTypesInput.value.split(',').map(t => t.trim());
+            const excludeDirs = excludeDirectoriesInput.value.split(',').map(d => d.trim());
+
+            const filteredFiles = files.filter(file => {
+                const filePath = file.webkitRelativePath;
+                const fileName = file.name;
+
+                // Check if file is in any excluded directories
+                const isInExcludedDir = excludeDirs.some(dir => {
+                    return filePath.includes(`${dir}/`) || filePath.startsWith(`${dir}/`);
+                });
+
+                if (isInExcludedDir) {
+                    return false;
+                }
+
+                // Check if file has excluded extension
+                const hasExcludedExt = excludeFileTypes.some(ext =>
+                    fileName.endsWith(ext)
+                );
+
+                if (hasExcludedExt) {
+                    return false;
+                }
+
+                // Check if file has included extension
+                const hasIncludedExt = includeFileTypes.some(ext =>
+                    fileName.endsWith(ext)
+                );
+
+                return hasIncludedExt;
+            });
+
+            if (filteredFiles.length === 0) {
+                messageDiv.textContent = 'No matching files found to analyze.';
+                return;
+            }
+
+            messageDiv.textContent = `Analyzing ${filteredFiles.length} files...`;
+
+            // Reset the graph to store nodes and links
+            graph = { nodes: [], links: [] };
+            const fileMap = new Map();
+
+            const promises = filteredFiles.map(file => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const content = e.target.result;
+                        const relativePath = file.webkitRelativePath;
+                        const fullPath = `${baseDirectory}/${relativePath}`;  // Ensure full path is constructed here
+
+                        const fileInfo = {
+                            id: fullPath,         // Use full path for uniqueness
+                            name: file.name,
+                            path: fullPath,       // Store full path
+                            content: content,
+                            imports: [],
+                            type: getFileType(file.name)
+                        };
+
+                        // Process imports based on file type
+                        if (file.name.endsWith('.js') || file.name.endsWith('.jsx') ||
+                            file.name.endsWith('.ts') || file.name.endsWith('.tsx')) {
+                            fileInfo.imports = extractJavaScriptImports(content, relativePath);
+                        } else if (file.name.endsWith('.py')) {
+                            fileInfo.imports = extractPythonImports(content, relativePath);
+                        } else if (file.name.endsWith('.java')) {
+                            fileInfo.imports = extractJavaImports(content, relativePath);
+                        } else if (file.name.endsWith('.html')) {
+                            fileInfo.imports = extractHtmlImports(content, relativePath);
+                        }
+
+                        fileMap.set(fullPath, fileInfo);
+                        resolve();
+                    };
+                    reader.readAsText(file);
+                });
+            });
+
+            Promise.all(promises).then(() => {
+                // Create nodes using the full paths
+                fileMap.forEach(file => {
+                    graph.nodes.push({
+                        id: file.id,      // Full path
+                        name: file.name,
+                        path: file.path,  // Full path
+                        type: file.type
+                    });
+                });
+
+                // Create links using the full paths
+                fileMap.forEach(file => {
+                    file.imports.forEach(importPath => {
+                        // Skip self-imports
+                        if (importPath === file.path) return;
+
+                        // Adjust matching by using full paths instead of relative paths
+                        const fullImportPath = `${baseDirectory}/${importPath}`;
+
+                        // Check if the imported file exists in our mapped files by full path
+                        if (fileMap.has(fullImportPath)) {
+                            graph.links.push({
+                                source: file.id, // Full path as source 
+                                target: fullImportPath, // Full path as target
+                                value: 1
+                            });
+                        }
+                    });
+                });
+
+                // Proceed to visualization initialization...
+                initVisualization();
+                updateVisualization();
+                updateFileList();
+
+                messageDiv.textContent = `Analysis complete. Found ${graph.nodes.length} files with ${graph.links.length} connections.`;
+            });
+        }
+
+        // Helper function to get file type for coloring
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return 'javascript';
+            if (['py'].includes(ext)) return 'python';
+            if (['html', 'css'].includes(ext)) return 'html';
+            return 'other';
+        }
+
+        // Helper function to get node color based on file type
+        function getNodeColor(type) {
+            switch (type) {
+                case 'javascript': return '#4285f4';
+                case 'python': return '#34a853';
+                case 'html': return '#fbbc05';
+                default: return '#ea4335';
+            }
+        }
+
+        // Extract imports from JavaScript/TypeScript files (fixed version)
+        function extractJavaScriptImports(content, sourcePath) {
+            const imports = [];
+            const baseDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+
+            // Match ES6 imports
+            const importRegex = /import\s+(?:.+\s+from\s+)?['"]([^'"]+)['"]/g;
+            let match;
+
+            while (match = importRegex.exec(content)) {
+                let importPath = match[1];
+
+                // Handle relative imports
+                if (importPath.startsWith('./') || importPath.startsWith('../')) {
+                    importPath = resolveRelativePath(baseDir, importPath);
+
+                    // Try to find the file with or without extension
+                    let foundPath = null;
+
+                    // First check if the exact path exists
+                    if (files.some(f => f.webkitRelativePath === importPath)) {
+                        foundPath = importPath;
+                    }
+
+                    // If not found and no extension specified, try common extensions
+                    if (!foundPath && !importPath.includes('.')) {
+                        const extensions = ['.js', '.jsx', '.ts', '.tsx'];
+                        for (const ext of extensions) {
+                            const testPath = importPath + ext;
+                            if (files.some(f => f.webkitRelativePath === testPath)) {
+                                foundPath = testPath;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Add if found
+                    if (foundPath) {
+                        imports.push(foundPath);
+                    }
+                }
+                // Skip node_modules and absolute imports
+            }
+
+            // Match require statements (similar fix)
+            const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+            while (match = requireRegex.exec(content)) {
+                let importPath = match[1];
+
+                if (importPath.startsWith('./') || importPath.startsWith('../')) {
+                    importPath = resolveRelativePath(baseDir, importPath);
+
+                    // Try to find the file
+                    let foundPath = null;
+
+                    if (files.some(f => f.webkitRelativePath === importPath)) {
+                        foundPath = importPath;
+                    }
+
+                    if (!foundPath && !importPath.includes('.')) {
+                        const extensions = ['.js', '.jsx', '.ts', '.tsx'];
+                        for (const ext of extensions) {
+                            const testPath = importPath + ext;
+                            if (files.some(f => f.webkitRelativePath === testPath)) {
+                                foundPath = testPath;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (foundPath) {
+                        imports.push(foundPath);
+                    }
+                }
+            }
+
+            return imports;
+        }
+
+        // Extract imports from Python files
+        function extractPythonImports(content, sourcePath) {
+            const imports = [];
+            const baseDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+
+            // Match import statements
+            const importRegex = /(?:from\s+([^\s]+)\s+import|import\s+([^\s]+))/g;
+            let match;
+
+            while (match = importRegex.exec(content)) {
+                const importModule = match[1] || match[2];
+
+                // Skip standard library modules
+                if (!importModule.includes('.') && !/[\/\\]/.test(importModule)) {
+                    continue;
+                }
+
+                // Convert module name to path
+                let importPath = importModule.replace(/\./g, '/');
+
+                // Check if it might be a relative import
+                if (importPath.startsWith('./') || importPath.startsWith('../')) {
+                    importPath = resolveRelativePath(baseDir, importPath);
+                } else {
+                    // Check if it's a local import
+                    const rootDir = sourcePath.split('/')[0];
+                    importPath = `${rootDir}/${importPath}`;
+                }
+
+                // Add Python extension if not specified
+                if (!importPath.endsWith('.py')) {
+                    importPath = `${importPath}.py`;
+                }
+
+                // Check if the file exists in our directory
+                if (files.some(f => f.webkitRelativePath === importPath)) {
+                    imports.push(importPath);
+                }
+            }
+
+            return imports;
+        }
+
+        // Extract imports from Java files
+        function extractJavaImports(content, sourcePath) {
+            const imports = [];
+            const baseDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+
+            // Match import statements
+            const importRegex = /import\s+([^;]+);/g;
+            let match;
+
+            while (match = importRegex.exec(content)) {
+                const importModule = match[1].trim();
+
+                // Skip standard library imports
+                if (importModule.startsWith('java.') ||
+                    importModule.startsWith('javax.') ||
+                    importModule.startsWith('com.sun.')) {
+                    continue;
+                }
+
+                // Convert package to path
+                let importPath = importModule.replace(/\./g, '/');
+
+                // Check for wildcards
+                if (importPath.endsWith('*')) {
+                    importPath = importPath.substring(0, importPath.length - 1);
+                } else {
+                    importPath = `${importPath}.java`;
+                }
+
+                // Check if it's a local import
+                const rootDir = sourcePath.split('/')[0];
+                const fullPath = `${rootDir}/src/main/java/${importPath}`;
+
+                // Check if the file exists in our directory
+                if (files.some(f => f.webkitRelativePath === fullPath)) {
+                    imports.push(fullPath);
+                }
+            }
+
+            return imports;
+        }
+
+        // Extract imports from HTML files
+        function extractHtmlImports(content, sourcePath) {
+            const imports = [];
+            const baseDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+
+            // Match script src
+            const scriptRegex = /<script[^>]*src=["']([^"']+)["'][^>]*>/g;
+            let match;
+
+            while (match = scriptRegex.exec(content)) {
+                let importPath = match[1];
+
+                // Handle relative paths
+                if (importPath.startsWith('./') || importPath.startsWith('../') || !importPath.startsWith('http')) {
+                    if (!importPath.startsWith('./') && !importPath.startsWith('../')) {
+                        importPath = './' + importPath;
+                    }
+
+                    importPath = resolveRelativePath(baseDir, importPath);
+
+                    // Check if the file exists in our directory
+                    if (files.some(f => f.webkitRelativePath === importPath)) {
+                        imports.push(importPath);
+                    }
+                }
+            }
+
+            // Match link href for CSS
+            const linkRegex = /<link[^>]*href=["']([^"']+)["'][^>]*>/g;
+            while (match = linkRegex.exec(content)) {
+                let importPath = match[1];
+
+                // Only include CSS files
+                if (!importPath.endsWith('.css')) continue;
+
+                // Handle relative paths
+                if (importPath.startsWith('./') || importPath.startsWith('../') || !importPath.startsWith('http')) {
+                    if (!importPath.startsWith('./') && !importPath.startsWith('../')) {
+                        importPath = './' + importPath;
+                    }
+
+                    importPath = resolveRelativePath(baseDir, importPath);
+
+                    // Check if the file exists in our directory
+                    if (files.some(f => f.webkitRelativePath === importPath)) {
+                        imports.push(importPath);
+                    }
+                }
+            }
+
+            return imports;
+        }
+
+        // Helper function to resolve relative paths (improved)
+        function resolveRelativePath(baseDir, relativePath) {
+            // Split by separator and filter out empty parts
+            const parts = baseDir.split('/').filter(Boolean);
+            const relParts = relativePath.split('/').filter(Boolean);
+
+            // Remove the filename part from baseDir if needed
+            if (baseDir.indexOf('.') > baseDir.lastIndexOf('/')) {
+                parts.pop();
+            }
+
+            // Process relative path parts
+            for (const part of relParts) {
+                if (part === '.') continue;
+                if (part === '..') {
+                    parts.pop();
+                } else {
+                    parts.push(part);
+                }
+            }
+
+            return parts.join('/');
+        }
+
+        // Update the visualization
+        function updateVisualization() {
+            // Clear previous elements
+            svg.selectAll('*').remove();
+
+            // Create a container group for zooming
+            const container = svg.append('g');
+
+            // Create the graph elements within the container
+            link = container.append('g')
+                .selectAll('line')
+                .data(graph.links)
+                .enter().append('line')
+                .attr('class', 'link');
+
+            node = container.append('g')
+                .selectAll('.node')
+                .data(graph.nodes)
+                .enter().append('g')
+                .attr('class', 'node')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            node.append('circle')
+                .attr('r', 8)
+                .style('fill', d => getNodeColor(d.type));
+
+            node.append('text')
+                .attr('dx', 12)
+                .attr('dy', '.35em')
+                .text(d => d.name);
+
+            // Add hover and click behaviors
+            node.on('mouseover', function (event, d) {
+                highlightNode(d);
+                showTooltip(event, d);
+            })
+                .on('mouseout', function () {
+                    resetHighlight();
+                    hideTooltip();
+                })
+                .on('click', function (event, d) {
+                    event.stopPropagation();
+                    toggleNodeHighlight(d);
+
+                    // Open the file in VS Code
+                    const fileURL = `vscode://file/${d.path}`;
+                    window.open(fileURL, '_blank');
+                });
+
+            // Update simulation
+            simulation
+                .nodes(graph.nodes)
+                .on('tick', ticked);
+
+            simulation.force('link')
+                .links(graph.links)
+                .strength(parseFloat(linkStrengthInput.value));
+
+            // Allow clicking empty space to reset highlight
+            svg.on('click', resetHighlight);
+
+            // Fix zoom behavior to transform the groups
+            const zoomHandler = d3.zoom()
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    container.attr('transform', event.transform);
+                });
+
+            svg.call(zoomHandler);
+
+            // Restart simulation
+            simulation.alpha(1).restart();
+        }
+
+        // Update the file list panel
+        function updateFileList() {
+            fileListDiv.innerHTML = '<h3>Files</h3>';
+
+            // Create a map to keep track of the tree structure
+            const fileTree = {};
+
+            graph.nodes.forEach(file => {
+                const relativePath = file.path.substring(basePathInput.value.trim().length + 1); // Get relative path
+                const parts = relativePath.split('/'); // Split the path into parts
+
+                let currentNode = fileTree;
+
+                parts.forEach(part => {
+                    if (!currentNode[part]) {
+                        currentNode[part] = {}; // Initialize an empty object for the directory/file
+                    }
+                    currentNode = currentNode[part]; // Move down the tree
+                });
+            });
+
+            function renderTree(node, parentDiv, accumulatedPath = '') {
+                const ul = document.createElement('ul');
+                parentDiv.appendChild(ul);
+
+                // Separate directories and files
+                const directories = [];
+                const files = [];
+
+                for (const name in node) {
+                    if (Object.keys(node[name]).length > 0) {
+                        directories.push(name);
+                    } else {
+                        files.push(name);
+                    }
+                }
+
+                // Sort directories and files alphabetically
+                directories.sort();
+                files.sort();
+
+                // Append directories first, followed by files
+                const sortedNames = directories.concat(files);
+
+                sortedNames.forEach(name => {
+                    const li = document.createElement('li');
+                    const isDirectory = Object.keys(node[name]).length > 0;
+                    const currentPath = `${accumulatedPath}/${name}`.replace(/^\/+/, '');
+
+                    const span = document.createElement('span');
+                    span.textContent = name;
+                    li.appendChild(span);
+
+                    if (isDirectory) {
+                        li.className = 'directory-item';
+                        span.dataset.path = currentPath;
+
+                        span.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            const childUl = li.querySelector('ul');
+                            if (childUl.style.display === 'none') {
+                                childUl.style.display = 'block';
+                                li.classList.add('expanded');
+                                span.textContent = "▼ " + name; // Update icon for expanded
+                            } else {
+                                childUl.style.display = 'none';
+                                li.classList.remove('expanded');
+                                span.textContent = "▶ " + name; // Update icon for collapsed
+                            }
+                        });
+
+                        span.textContent = "▶ " + name; // Initial state with collapsed arrow
+                        const childList = document.createElement('ul');
+                        childList.style.display = 'none';
+                        li.appendChild(childList);
+                        renderTree(node[name], childList, currentPath);
+                    } else {
+                        li.className = 'file-item';
+                        const fullPath = `${basePathInput.value.trim()}/${currentPath}`; // Make sure fullPath is defined here
+                        span.dataset.path = fullPath;
+                        span.textContent = "📄 " + name;
+
+                        const correspondingNode = graph.nodes.find(n => n.path === fullPath);
+
+                        if (correspondingNode) {
+                            // Click handler to update selection
+                            span.addEventListener('click', (event) => {
+                                event.stopPropagation();
+
+                                const nodeId = correspondingNode.id;
+                                if (selectedNodes.has(nodeId)) {
+                                    selectedNodes.delete(nodeId);
+                                } else {
+                                    selectedNodes.add(nodeId); // Add the new node without clearing others
+                                }
+
+                                // Update view based on adjacency in the visualization
+                                updateNodeAndLinkOpacity();
+
+                                // Update only the specific file item highlight
+                                updateFileItemHighlight();
+                            });
+
+                            span.addEventListener('mouseover', () => {
+                                highlightNode(correspondingNode);
+                            });
+
+                            span.addEventListener('mouseout', () => {
+                                if (!selectedNodes.has(correspondingNode.id)) {
+                                    resetHighlight();
+                                }
+                            });
+                        }
+                    }
+
+                    ul.appendChild(li);
+                });
+            }
+
+            console.log(fileTree)
+            // Start rendering from the root of the tree
+            renderTree(fileTree, fileListDiv);
+        }
+
+        function updateFileItemHighlight() {
+            document.querySelectorAll('.file-item').forEach(item => {
+                const filePath = item.querySelector('span').dataset.path;
+                const isSelected = graph.nodes.some(n => n.path === filePath && selectedNodes.has(n.id));
+                item.classList.toggle('highlighted', isSelected);
+            });
+        }
+
+        function updateNodeAndLinkOpacity() {
+            const connectedNodes = new Set();
+            const connectedLinks = new Set();
+
+            // Populate the connected nodes and links set
+            selectedNodes.forEach(selectedNodeId => {
+                graph.links.forEach(link => {
+                    if (link.source.id === selectedNodeId || link.target.id === selectedNodeId) {
+                        connectedNodes.add(link.source.id);
+                        connectedNodes.add(link.target.id);
+                        connectedLinks.add(link);
+                    }
+                });
+            });
+
+            if (selectedNodes.size === 0) {
+                // Reset all nodes and links to full opacity if no nodes are selected
+                node.style('opacity', 1);
+                link.style('opacity', 1);
+            } else {
+                node.style('opacity', d => {
+                    // Show nodes that are either selected or connected
+                    return (selectedNodes.has(d.id) || connectedNodes.has(d.id)) ? 1 : 0.1;
+                });
+
+                link.style('opacity', l => {
+                    // Show links that are connected to the selected nodes
+                    return connectedLinks.has(l) ? 1 : 0.1;
+                });
+            }
+
+            // Update file list highlighting
+            document.querySelectorAll('.file-item').forEach(item => {
+                const filePath = item.querySelector('span').dataset.path;
+                const isHighlighted = graph.nodes.some(n => n.path === filePath && (selectedNodes.has(n.id) || connectedNodes.has(n.id)));
+                if (isHighlighted) {
+                    item.classList.add('highlighted');
+                } else {
+                    item.classList.remove('highlighted');
+                }
+            });
+        }
+
+
+        // Simulation tick function
+        function ticked() {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            node
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        }
+
+        // Drag functions
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+
+        // Highlight a node and its connections
+        function highlightNode(d) {
+            const connectedNodes = new Set();
+            graph.links.forEach(link => {
+                if (link.source.id === d.id) connectedNodes.add(link.target.id);
+                if (link.target.id === d.id) connectedNodes.add(link.source.id);
+            });
+
+            node.classed('highlighted', n => n.id === d.id || connectedNodes.has(n.id));
+            link.classed('highlighted', l => l.source.id === d.id || l.target.id === d.id);
+        }
+
+        // Toggle persistent highlight of a node
+        function toggleNodeHighlight(d) {
+            // Check if this node is already highlighted
+            const isHighlighted = node.filter(n => n.id === d.id).classed('highlighted');
+
+            // If it's highlighted, reset; otherwise highlight it
+            if (isHighlighted) {
+                resetHighlight();
+            } else {
+                highlightNode(d);
+            }
+        }
+
+        // Reset all highlighting
+        function resetHighlight() {
+            node.classed('highlighted', d => selectedNodes.has(d.id));
+            link.classed('highlighted', false);
+
+            document.querySelectorAll('.file-item').forEach(item => {
+                const filePath = item.querySelector('span').dataset.path;
+                const isHighlighted = graph.nodes.some(n => n.path === filePath && selectedNodes.has(n.id));
+                if (isHighlighted) {
+                    item.classList.add('highlighted');
+                } else {
+                    item.classList.remove('highlighted');
+                }
+            });
+        }
+
+        // Show tooltip
+        function showTooltip(event, d) {
+            const x = event.pageX;
+            const y = event.pageY;
+
+            // Count connections
+            let imports = 0;
+            let importedBy = 0;
+
+            graph.links.forEach(link => {
+                if (link.source.id === d.id) imports++;
+                if (link.target.id === d.id) importedBy++;
+            });
+
+            tooltip.style.left = `${x + 10}px`;
+            tooltip.style.top = `${y - 10}px`;
+            tooltip.innerHTML = `
+                <strong>${d.name}</strong><br>
+                Path: ${d.path}<br>
+                Imports: ${imports} files<br>
+                Imported by: ${importedBy} files
+            `;
+            tooltip.style.opacity = 1;
+        }
+
+        // Hide tooltip
+        function hideTooltip() {
+            tooltip.style.opacity = 0;
+        }
+
+        // Initialize
+        initVisualization();
+    </script>
+    <ul id="context-menu" style="display: none; position: absolute; z-index: 1000;">
+        <li id="exclude-option">Exclude</li>
+    </ul>
+</body>
+
+</html>
