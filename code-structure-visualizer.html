@@ -493,7 +493,7 @@
         const basePathInput = document.getElementById('base-path-input');
         const selectedNodes = new Set();
 
-        // Add a button to toggle menu visibility
+        // Button to toggle menu visibility
         const toggleMenuButton = document.createElement('button');
         toggleMenuButton.textContent = 'Toggle Menu';
         toggleMenuButton.style.position = 'fixed';
@@ -812,7 +812,7 @@
             }
         }
 
-        // Extract imports from JavaScript/TypeScript files (fixed version)
+        // Extract imports from JavaScript/TypeScript files
         function extractJavaScriptImports(content, sourcePath) {
             const imports = [];
             const baseDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
@@ -856,7 +856,7 @@
                 // Skip node_modules and absolute imports
             }
 
-            // Match require statements (similar fix)
+            // Match require statements
             const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
             while (match = requireRegex.exec(content)) {
                 let importPath = match[1];
@@ -1029,7 +1029,7 @@
             return imports;
         }
 
-        // Helper function to resolve relative paths (improved)
+        // Helper function to resolve relative paths
         function resolveRelativePath(baseDir, relativePath) {
             // Split by separator and filter out empty parts
             const parts = baseDir.split('/').filter(Boolean);
@@ -1410,9 +1410,6 @@
         // Initialize
         initVisualization();
     </script>
-    <ul id="context-menu" style="display: none; position: absolute; z-index: 1000;">
-        <li id="exclude-option">Exclude</li>
-    </ul>
 </body>
 
 </html>
