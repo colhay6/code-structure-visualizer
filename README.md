@@ -1,7 +1,5 @@
 # Code Structure Visualizer
-
-![Alt Text](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGFrMTE5YWd3Z3JmN2g3czQ2NmtyYmg3enl0b2Jycm5lNTJ6a3FybyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JKDTC9wFP8HziDPeNw/giphy.gif)
-
+![code-structure-visualizer-demo](https://github.com/user-attachments/assets/5fa41c17-e0c9-4508-ac8c-7477bdc461bb)
 The Code Structure Visualizer is a local web-based tool designed to help developers visualize and analyze the structural relationships within their codebase. This tool leverages D3.js to provide an interactive graphical representation of file dependencies, allowing you to better understand how various components in your projects are interconnected.
 
 ## Why?
